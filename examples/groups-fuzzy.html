@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Choicey – Groups Fuzzy Example</title>
+  <link rel="stylesheet" href="./choicey.css">
+  <script src="./es-module-shims.js"></script>
+  <script type="module-shim">
+    import { Application } from "./stimulus.js"
+    import { Choicey } from "./choicey.js"
+    import Fuse from 'https://cdn.jsdelivr.net/npm/fuse.js@7.1.0/dist/fuse.mjs'
+    window.Stimulus = Application.start()
+    window.Fuse = Fuse
+    Stimulus.register("choicey", Choicey)
+  </script>
+</head>
+<body>
+  <div>
+    <div data-controller="choicey"
+      data-choicey-items-value='[
+        { "group": "Europe", "groupLabelClass": "fw-bold", "items": [
+          { "value": "PL", "text": "Poland" },
+          { "value": "DE", "text": "Germany" }
+        ]},
+        { "group": "Asia", "groupLabelClass": "fw-bold", "items": [
+          { "value": "CN", "text": "China" },
+          { "value": "JP", "text": "Japan" }
+        ]}
+      ]'
+      data-choicey-search-fuse-options-value='{"keys":["text","group"],"threshold":0.4}'
+      data-choicey-search-placeholder-value="Search countries or groups...">
+      <select multiple class="choicey__hidden" data-choicey-target="hidden" name="countries[]"></select>
+    </div>
+  </div>
+</body>
+</html>

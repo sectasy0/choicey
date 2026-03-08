@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Choicey – Group Checkbox Example</title>
+  <link rel="stylesheet" href="./choicey.css">
+  <script src="./es-module-shims.js"></script>
+  <script type="module-shim">
+    import { Application } from "./stimulus.js"
+    import { Choicey } from "./choicey.js"
+    window.Stimulus = Application.start()
+    Stimulus.register("choicey", Choicey)
+  </script>
+</head>
+<body>
+  <div style="max-width:400px;margin:2rem auto">
+    <div data-controller="choicey"
+      data-choicey-items-value='[
+        { "group": "Europe", "groupLabelClass": "fw-bold", "items": [
+          { "value": "PL", "text": "Poland" },
+          { "value": "DE", "text": "Germany" }
+        ]},
+        { "group": "Asia", "groupLabelClass": "fw-bold", "items": [
+          { "value": "CN", "text": "China" },
+          { "value": "JP", "text": "Japan" }
+        ]}
+      ]'
+      data-choicey-search-placeholder-value="Search countries or groups...">
+      <select multiple class="choicey__hidden" data-choicey-target="hidden" name="countries[]"></select>
+    </div>
+  </div>
+</body>
+</html>

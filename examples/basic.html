@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <link rel="stylesheet" href="./choicey.css">
+        <script src="./es-module-shims.js"></script>
+        <script type="module-shim">
+            import { Application } from "./stimulus.js"
+            import { Choicey } from "./choicey.js"
+            
+            window.Stimulus = Application.start()
+            Stimulus.register("choicey", Choicey)
+        </script>
+    </head>
+    <body>
+        <div data-controller="choicey"
+            data-choicey-items-value='[
+            { "value": "PL", "text": "Poland 🇵🇱" },
+            { "value": "CN", "text": "China 🇨🇳" },
+            { "value": "BR", "text": "Brazil 🇧🇷" },
+            { "value": "DE", "text": "Germany 🇩🇪" },
+            { "value": "CA", "text": "Canada 🇨🇦" },
+            { "value": "AU", "text": "Australia 🇦🇺" },
+            { "value": "IN", "text": "India 🇮🇳" },
+            { "value": "FR", "text": "France 🇫🇷" },
+            { "value": "ZA", "text": "South Africa 🇿🇦" },
+            { "value": "JP", "text": "Japan 🇯🇵" },
+            { "value": "MX", "text": "Mexico 🇲🇽" }
+            ]'
+            data-choicey-search-placeholder-value="Search countries..."
+            data-choicey-clear-all-value="true"
+            data-choicey-no-results-text="No results found"
+            
+        >
+            <select multiple class="choicey__hidden" data-choicey-target="hidden" name="countries[]"></select>
+        </div>
+    </body>
+</html>
