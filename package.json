@@ -1,12 +1,17 @@
 {
   "name": "@sectasy0/choicey",
-  "version": " 1.0.1",
+  "version": "1.0.6",
   "description": "Stimulus select component on steroids: supports search, grouping, remote data, and more.",
   "type": "module",
-  "main": "src/choicey.js",
+  "main": "./dist/choicey.js",
   "exports": {
-    ".": "./src/choicey.js"
+    ".": "./dist/choicey.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "source": "src/choicey.js",
   "author": "Piotr Markiewicz <sectasy0@gmail.com>",
   "license": "AGPL-3.0-only",
@@ -31,17 +36,20 @@
   },
   "devDependencies": {
     "@hotwired/stimulus": "^3.1.0",
+    "clean-css-cli": "^5.6.3",
     "concurrently": "^9.2.1",
     "cors": "^2.8.6",
     "cypress": "^9.2.0",
     "express": "^5.2.1",
     "http-server": "^14.0.0",
-    "start-server-and-test": "^1.14.0"
+    "start-server-and-test": "^1.14.0",
+    "terser": "^5.46.0"
   },
   "scripts": {
     "start": "concurrently \"http-server ./examples -p 3300 -c10 \" \"node server.js\"",
     "cy:run": "cypress run",
     "test": "node run-tests.js",
+    "build": "terser src/*.js -c -m -o dist/choicey.min.js && cleancss -o dist/choicey.min.css src/*.css",
     "postversion": "git push && git push --tags",
     "release": "yarn version && npm adduser && npm publish"
   }

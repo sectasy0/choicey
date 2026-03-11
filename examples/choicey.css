@@ -387,6 +387,6 @@
   padding-left: 8px;
 }
 
-.choicey__limit-reached {
+.choicey__limit-reached, .choicey__error {
   color: rgb(220, 53, 69);
 }

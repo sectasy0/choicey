@@ -14,8 +14,9 @@ export default class Choicey extends Controller {
     searchRemote: { type: Boolean, default: false }, // use remote search
     searchParams: { type: Object, default: {} }, // extra params for search request
     searchFuseOptions: { type: Object, default: {} }, // options for Fuse.js local search
-    searchNoResultsText: { type: String, default: 'No results'},   // custom message when no results found
+    searchNoResultsText: { type: String, default: 'No results'}, // custom message when no results found
     searchPlaceholder: { type: String, default: 'Search...' }, // placeholder for search input
+    searchMinChars: { type: Number, default: 3 }, // min chars to trigger remote search
 
     // PRELOAD OPTIONS
     preloadUrl: String,           // URL to preload items
@@ -26,12 +27,15 @@ export default class Choicey extends Controller {
     addableParams: { type: Object, default: {} }, // extra params for addable request
     addableMinChars: { type: Number, default: 3 }, // min chars to trigger addable
     addableButtonText: { type: String, default: "Add tag {n}" }, // text for addable button
+    addableErrorText: { type: String, default: "Failed to add item. Please try again." }, // message on addable error
 
     disabled: { type: Boolean, default: false },  // disables the component
     single: { type: Boolean, default: false },    // allow only one selected item
     selectedPreviewText: { type: String, default: "{n} selected" }, // customizable preview text
     showTagCount: { type: Boolean, default: false }, // show count instead of pills
     clearAll: { type: Boolean, default: false },   // show "clear all" button for multi-select
+
+    remoteErrorText: { type: String, default: "Unable to load results. Please try again." }, // message on remote search error
 
     // LIMITING OPTIONS
     selectedLimit: { type: Number, default: null },  // max number of selectable items
@@ -112,8 +116,13 @@ export default class Choicey extends Controller {
    * Called automatically when the controller is connected.
    */
   async connect() {
-    // Insert main HTML template after hidden select
-    this.hiddenTarget.insertAdjacentHTML("afterend", this.template)
+    // Only insert the template if it hasn't been added already (prevents duplication on hot reload)
+    if (this.element.querySelector('.choicey__container') == undefined) {
+      // Insert main HTML template after hidden select
+      this.hiddenTarget.insertAdjacentHTML("afterend", this.template)
+    }
+
+    this.remoteFailure = false;
 
     await Promise.resolve();
 
@@ -168,40 +177,64 @@ export default class Choicey extends Controller {
    * This allows easy access to selected values: hiddenSelect.values -> [1, 2, 3]
    */
   enhanceHiddenSelect() {
-    Object.defineProperty(this.hiddenTarget, "values", {
-      get: () => {
-        if (this.selectedValue.length <= 0) return []
-        return this.selectedValue.map(item => item.value)
-      }
-    })
+    const descriptor = Object.getOwnPropertyDescriptor(this.hiddenTarget, "values")
+
+    if (!descriptor) {
+      Object.defineProperty(this.hiddenTarget, "values", {
+        get: () => {
+          if (this.selectedValue.length <= 0) return []
+          return this.selectedValue.map(item => item.value)
+        }
+      })
+    }
   }
 
   /**
    * Dispatches search to local or remote depending on config.
    */
   search() {
-    if (this.searchRemoteValue) return this.searchRemote()
+    if (this.searchRemoteValue && this.searchTarget.value.length >= this.searchMinCharsValue) {
+      this.listTarget.innerHTML = this.allItems;
+      console.log('aaaaaaaaa')
+      if (this.searchTarget.value === "") {
+        this.toggleDropdown()
+        return;
+      }
+      
+      return this.searchRemote()
+    }
     this.searchLocal()
   }
-
 
   /**
    * Performs remote search: fetches items from server based on query.
    */
   async searchRemote() {
-    const response = await fetch(this.searchUrlValue + "?" + new URLSearchParams({
-      q: this.searchTarget.value,
-      preselects: this.selectedValue.map(x => x.value).join(","),
-      ...this.searchParamsValue
-    }))
-
-    const searchedItems = await response.json()
-    this.itemsValue = searchedItems
+    this.remoteFailure = false;
     this.dropdownTarget.classList.add("choicey__dropdown--open")
-    // Ensure checkboxes are checked after DOM update
-    setTimeout(() => {
-      this.selectedValue.forEach(selected => this.checkItem(selected.value))
-    }, 0)
+    
+    try {
+      const response = await fetch(this.searchUrlValue + "?" + new URLSearchParams({
+        q: this.searchTarget.value,
+        preselects: this.selectedValue.map(x => x.value).join(","),
+        ...this.searchParamsValue
+      }))
+
+      if (!response.ok) {
+        this.handleFailure(response, true)
+        return;
+      }
+
+      const searchedItems = await response.json()
+      this.itemsValue = searchedItems
+      
+      // Ensure checkboxes are checked after DOM update
+      setTimeout(() => {
+        this.selectedValue.forEach(selected => this.checkItem(selected.value))
+      }, 0)
+    } catch {
+      this.handleFailure(null, false)
+    }
   }
 
   /**
@@ -300,19 +333,30 @@ export default class Choicey extends Controller {
    */
   async preload() {
     let url = this.preloadUrlValue
+    this.remoteFailure = false;
 
     if (this.preloadParamsValue) {
       const params = new URLSearchParams(this.preloadParamsValue)
       url += `?${params.toString()}`
     }
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" }
-    })
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+      })
 
-    const items = await response.json()
-    this.itemsValue = items
+      if (!response.ok) {
+        this.handleFailure(response, true)
+        return;
+      }
+
+      const items = await response.json()
+      this.itemsForSearch = flattenItems(items);
+      this.itemsValue = items;
+    } catch {
+      this.handleFailure(null, false)
+    }
   }
 
   /**
@@ -325,6 +369,7 @@ export default class Choicey extends Controller {
       this.dropdownTarget.classList.remove("choicey__dropdown--open")
       if (this.selectedValue.length > 0) this.inputContainerTarget.style.display = "none"
       this.searchTarget.blur()
+      this.searchTarget.value = ""
     } else {
       if (this.itemsValue.length) this.dropdownTarget.classList.add("choicey__dropdown--open")
     }
@@ -414,6 +459,7 @@ export default class Choicey extends Controller {
 
   /**
    * Removes a single item from selection.
+   * @param {Event} e - The click event from the remove button on a pill
    */
   removeItem(e) {
     e.stopPropagation()
@@ -434,6 +480,7 @@ export default class Choicey extends Controller {
 
   /**
    * Unchecks a single checkbox in dropdown.
+   * @param {string} value - The value of the item to uncheck
    */
   uncheckItem(value) {
     const itemToUncheck = this.listTarget.querySelector(`input[data-value="${value}"]`)
@@ -442,6 +489,7 @@ export default class Choicey extends Controller {
 
   /**
    * Checks a single checkbox in dropdown.
+   * @param {string} value - The value of the item to check
    */
   checkItem(value) {
     const itemToCheck = this.listTarget.querySelector(`input[data-value="${value}"]`)
@@ -452,6 +500,7 @@ export default class Choicey extends Controller {
   /**
    * Toggles item selection (single or multi-select).
    * Handles both single and multi-select logic.
+   * @param {HTMLInputElement} input - The checkbox input element that was toggled
    */
   toggleItem(input) {
     if (this.singleValue) {
@@ -521,17 +570,19 @@ export default class Choicey extends Controller {
   }
 
   onEscapeKeydown = () => {
+    this.toggleDropdown()
     if (this.searchTarget.value !== "") {
       this.searchTarget.value = ""
+      this.listTarget.innerHTML = this.allItems
       return this.search()
     }
-    this.toggleDropdown()
   }
 
   // ====
 
   /**
    * Returns the next/previous selectable sibling item for keyboard navigation.
+   * @param {boolean} next - If true, returns the next sibling; otherwise, returns the previous sibling.
    */
   sibling(next) {
     const options = this.itemTargets
@@ -545,26 +596,36 @@ export default class Choicey extends Controller {
 
   /**
    * Addable feature: send new item to server and add to selection.
+   * @param {Event} e - The click event from the addable button
    */
   async addable(e) {
     e.preventDefault()
     const query = this.searchTarget.value
     if (query === "" || this.itemsValue.some(item => item.text === query)) return
 
-    const response = await fetch(this.addableUrlValue, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ addable: query, ...this.addableParamsValue })
-    })
+    this.remoteFailure = false;
 
-    if (response.ok) {
-      const addedItem = await response.json()
-      this.addAddableItem(addedItem)
+    try {
+      const response = await fetch(this.addableUrlValue, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addable: query, ...this.addableParamsValue })
+      })
+
+      if (response.ok) {
+        const addedItem = await response.json()
+        this.addAddableItem(addedItem)
+      } else {
+        this.handleFailure(response, true, this.addableErrorTextValue)
+      }
+    } catch {
+      this.handleFailure(null, true, this.addableErrorTextValue)
     }
   }
 
   /**
    * Adds a new item (from addable) to the items and selection.
+   * @param {Object} addedItem - The item object returned from the server after adding
    */
   addAddableItem(addedItem) {
     this.itemsValue = this.itemsValue.concat(addedItem)
@@ -575,6 +636,7 @@ export default class Choicey extends Controller {
 
   /**
    * Highlights/focuses a specific item in dropdown.
+   * @param {HTMLElement} target The item element to focus
    */
   navigate(target) {
     const previouslySelected = this.focusedItem
@@ -590,6 +652,7 @@ export default class Choicey extends Controller {
 
   /**
    * Returns the currently focused item in the dropdown.
+   * @returns {HTMLElement} The currently focused item element
    */
   get focusedItem() {
     return this.listTarget.querySelector(activeSelector)
@@ -599,19 +662,28 @@ export default class Choicey extends Controller {
    * Focuses the search input and shows the input container.
    */
   focusSearch() {
+    if (this.disabledValue) return
+
     this.inputContainerTarget.style.display = ""
     this.searchTarget.focus()
+
+    
+    if (this.itemsValue.length === 0 && !this.remoteFailure) return
+    this.remoteFailure = false
+    this.dropdownTarget.classList.add("choicey__dropdown--open")
   }
 
   /**
    * Dispatches a custom event for addable action.
    */
   addableEvent() {
+    if (this.disabledValue) return
     document.dispatchEvent(new CustomEvent("choicey-addable"))
   }
 
   /**
    * Returns the main HTML template for the component.
+   * @returns {String} HTML string for the component's structure
    */
   get template() {
     const isSingle = this.singleValue || this.showTagCountValue
@@ -627,10 +699,10 @@ export default class Choicey extends Controller {
     const preview = this.__hasPreviewTarget ? "" : `<div class="${previewClasses}" data-choicey-target="preview"></div>`
 
     return `
-      <div 
+      <div
         class="${containerClasses}" 
         data-choicey-target="container"
-        data-action="click->choicey#toggleDropdown focus->choicey#focusSearch"
+        data-action="mousedown->choicey#toggleDropdown focus->choicey#focusSearch"
         tabindex="0"
         data-turbo-cache="false"
       >
@@ -652,6 +724,7 @@ export default class Choicey extends Controller {
 
   /**
    * Returns the template for 'no results' (optionally with addable button).
+   * @returns {String} HTML string for 'no results' display
    */
   get noResultsTemplate() {
     const noResultsTemplate = `<div class="choicey__no-result">${this.searchNoResultsTextValue}</div>`
@@ -671,15 +744,30 @@ export default class Choicey extends Controller {
   }
 
   /**
+   *  Returns the template for remote errors.
+   * @param {String} message 
+   * @returns {String} HTML string for error display
+   */
+  errorTemplate(message) {
+    return `
+      <div class="choicey__no-result choicey__error choicey__error--flex">
+        <span class="choicey__error-message">${message || this.remoteErrorTextValue}</span>
+      </div>
+    `;
+  }
+
+  /**
    * Returns the template for the search input.
+   * @returns {string} HTML string for the search input element.
    */
   get inputTemplate() {
     return `
       <input 
         type="text" 
-        class="choicey__search ${this.singleValue || this.showTagCountValue ? 'choicey__search--single' : ''}" placeholder="${this.searchPlaceholderValue}"
+        class="choicey__search ${this.singleValue || this.showTagCountValue ? 'choicey__search--single' : ''}" 
+        placeholder="${this.searchPlaceholderValue}"
         data-choicey-target="search" ${this.disabledValue === true ? 'disabled' : ''}
-        data-action="choicey#search keydown->choicey#onKeyDown"
+        data-action="choicey#search keydown->choicey#onKeyDown focus->choicey#focusSearch"
       >
     `
   }
@@ -706,12 +794,21 @@ export default class Choicey extends Controller {
         let groupCheckbox = '';
         if (!this.singleValue) {
           groupCheckbox = `
-            <input type="checkbox" class="choicey__group-checkbox" data-group-idx="${groupIdx}" ${allSelected ? 'checked' : ''} ${someSelected && !allSelected ? 'data-indeterminate="true"' : ''} tabindex="-1">
+            <input 
+              type="checkbox" 
+              class="choicey__group-checkbox" 
+              data-group-idx="${groupIdx}" ${allSelected ? 'checked' : ''} 
+              ${someSelected && !allSelected ? 'data-indeterminate="true"' : ''} 
+              tabindex="-1"
+            >
           `;
         }
         itemsTemplate += `
           <li class="choicey__group">
-            <span class="choicey__group-label ${item.groupLabelClass || ''}" data-group-idx="${groupIdx}" data-action="click->choicey#toggleGroup">
+            <span 
+              class="choicey__group-label ${item.groupLabelClass || ''}" data-group-idx="${groupIdx}" 
+              data-action="click->choicey#toggleGroup"
+            >
               ${groupCheckbox}${item.group}
             </span>
             <ul class="choicey__group-list">
@@ -726,13 +823,15 @@ export default class Choicey extends Controller {
       }
     })
     setTimeout(() => {
-      document.querySelectorAll('.choicey__group-checkbox[data-indeterminate="true"]').forEach(cb => { cb.indeterminate = true; });
+      document.querySelectorAll('.choicey__group-checkbox[data-indeterminate="true"]')
+              .forEach(cb => { cb.indeterminate = true; });
     }, 0);
     return itemsTemplate
   }
 
   /**
    * Handles group checkbox click: toggles selection for all items in group.
+   * @param {Event} event - The click event from the group label
    */
   toggleGroup(event) {
     event.stopPropagation();
@@ -766,6 +865,7 @@ export default class Choicey extends Controller {
   
   /**
    * Returns HTML for selected items as pills (or tag count).
+   * @returns {string} HTML string for selected items in pill format
    */
   get pills() {
     let itemsTemplate = ""
@@ -790,6 +890,7 @@ export default class Choicey extends Controller {
 
   /**
    * Returns HTML for currently selected items.
+   * @returns {string} HTML string for selected items in the dropdown
    */
   get selectedItems() {
     return this.items(this.selectedValue, true)
@@ -797,6 +898,7 @@ export default class Choicey extends Controller {
 
   /**
    * Returns HTML for all items.
+   * @returns {string} HTML string for all items in the dropdown, including limit label if applicable
    */
   get allItems() {
     // Render limit label only once at the top if needed
@@ -844,6 +946,7 @@ export default class Choicey extends Controller {
 
   /**
    * Handles checkbox/radio change event for an item.
+   * @param {Event} event - The change event from the checkbox/radio input
    */
   checkBoxChange(event) {
     event.preventDefault()
@@ -885,6 +988,24 @@ export default class Choicey extends Controller {
       </div>`
     }
   }
+
+  async handleFailure(response, expectRemoteMessage = false, defaultMessage = this.remoteErrorTextValue) {
+    let errorMessage = defaultMessage; // default message
+
+    if (expectRemoteMessage) {
+      try {
+        const errorData = await response.json();
+        if (errorData?.message) {
+          errorMessage = errorData.message;
+        }
+      } catch (e) {
+        // no error message in response, keep default errorMessage
+      }
+    }
+
+    this.listTarget.innerHTML = this.errorTemplate(errorMessage)
+    this.remoteFailure = true;
+  }
 }
 
 // ==== Utilities ====
@@ -913,10 +1034,16 @@ function flattenItems(items) {
   return items.flatMap(item => {
     if (!item) return []
     if (item.group && Array.isArray(item.items)) {
-      return item.items.map(i => ({ ...i, group: item.group, groupLabelClass: item.groupLabelClass || '' }))
+      return item.items.map(i => ({ 
+        ...i, 
+        group: item.group, 
+        groupLabelClass: item.groupLabelClass || '' 
+      }))
     }
     return [{ ...item, group: undefined }]
   })
 }
+
+window.debounce = debounce // Expose Choicey globally for testing purposes
 
 export { Choicey }

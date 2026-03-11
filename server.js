@@ -22,6 +22,22 @@ app.get('/elements', (req, res) => {
     res.json(filtered);
 });
 
+app.get('/elements-error', (req, res) => {
+    res.status(500).json({})
+});
+
+app.get('/elements-error2', (req, res) => {
+    res.status(500).json({ message: '500内部服务器错误' });
+});
+
+app.post('/elements-error', (req, res) => {
+    res.status(422).json({});
+});
+
+app.post('/elements-error2', (req, res) => {
+    res.status(422).json({ message: '车辆名称已存在' });
+});
+
 app.post('/elements', (req, res) => {
     const { addable } = req.body;
     if (!addable) return res.status(400).json({ error: 'addable is required' });

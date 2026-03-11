@@ -59,6 +59,9 @@ Choicey offers a comprehensive set of features for building advanced, accessible
 - **Lightweight & Modern:** No dependencies except Stimulus and DOMPurify (for HTML sanitization).
 - **Backspace Tag Removal**: Remove last selected tag when the input is empty.
 - **Fuzzy search**: Supports Fuzzy search via Fuse.js for local searching (see [Fuzzy Search (Fuse.js)](#fuzzy-search-fusejs)).
+- **Extended error handling**: Supports displaying errors returned from the API (like validation errors for addable) as well as general errors occurring during preload and search operations.
+target.
+- **Custom Tag Preview Wrapper:** Provide an option to set a custom wrapper for the tags/preview area.
 
 ---
 
@@ -68,8 +71,7 @@ The following enhancements are planned to further improve Choicey:
 
 - **Tree View Support:** Enable hierarchical (tree) selection for complex data structures.
 - **Lazy Loading:** Add support for lazy loading of grouped and tree items to optimize performance with large datasets.
-- **Custom Item Templates:** Allow overriding the default item rendering template via a user-provided function or target.
-- **Custom Tag Preview Wrapper:** Provide an option to set a custom wrapper for the tags/preview area.
+- **Custom Item Templates:** Allow overriding the default item rendering template via a user-provided function or 
 - **Enhanced Accessibility:** Expand and document full screen reader support for all interactive elements.
 - **Extended Metadata:** Add richer support for displaying descriptions or additional metadata below each item name.
 - **Pinned Items**: Allow frequently used options to stay at the top of the dropdown.
@@ -87,8 +89,9 @@ yarn add @sectasy0/choicey
 
 **importmap-rails:**
 ```bash
-./bin/importmap pin @sectasy0/choicey
+pin "@sectasy0/choicey", to: "https://cdn.jsdelivr.net/npm/@sectasy0/choicey@1.0.2/dist/src/choicey.js"
 ```
+
 
 ---
 
@@ -436,11 +439,18 @@ Choicey supports fuzzy searching of local data using [Fuse.js](https://fusejs.io
 - Preload/search endpoints must return a JSON array of `{ value, text }` objects.
 - addable endpoints must accept `{ addable: <name> }` and return `{ value: <value>, text: <text>}`.
 - Remote search receives `q` and `preselects` query params and additional user specified params.
+- Errors format `{ message: <error_message> }`
 
 ---
 
 ## Contributing
 Bug reports and pull requests are welcome on GitHub at https://github.com/sectasy0/choicey. Please read the Contributor Covenant code of conduct.
+
+## Acknowledgements
+
+This project builds upon the excellent work from the original [stimulus-multiselect](https://github.com/WizardComputer/stimulus-multiselect) project by WizardComputer.
+
+It extends the original implementation with additional features and adjustments while preserving the core ideas and approach of the upstream library. Many thanks to the original authors and contributors for their work.
 
 ---
 
